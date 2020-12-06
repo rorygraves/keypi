@@ -2,86 +2,52 @@ package example;
 
 
 import com.pi4j.io.gpio.*;
+import com.pi4j.io.gpio.event.GpioPinDigitalStateChangeEvent;
+import com.pi4j.io.gpio.event.GpioPinListenerDigital;
 import com.pi4j.platform.PlatformAlreadyAssignedException;
 import com.pi4j.util.CommandArgumentParser;
 import com.pi4j.util.Console;
 import com.pi4j.util.ConsoleColor;
 
 /**
- * This example code demonstrates how to perform simple GPIO
- * pin state reading on the Raspberry Pi.
+ * This example code demonstrates how to setup a listener
+ * for GPIO pin state changes on the Raspberry Pi.
  *
  * @author Robert Savage
  */
 public class GpioInputExample {
 
-    /**
-     * [ARGUMENT/OPTION "--pin (#)" | "-p (#)" ]
-     * This example program accepts an optional argument for specifying the GPIO pin (by number)
-     * to use with this GPIO listener example. If no argument is provided, then GPIO #1 will be used.
-     * -- EXAMPLE: "--pin 4" or "-p 0".
-     *
-     * [ARGUMENT/OPTION "--pull (up|down|off)" | "-l (up|down|off)" | "--up" | "--down" ]
-     * This example program accepts an optional argument for specifying pin pull resistance.
-     * Supported values: "up|down" (or simply "1|0").   If no value is specified in the command
-     * argument, then the pin pull resistance will be set to PULL_UP by default.
-     * -- EXAMPLES: "--pull up", "-pull down", "--pull off", "--up", "--down", "-pull 0", "--pull 1", "-l up", "-l down".
-     *
-     * @param args
-     * @throws InterruptedException
-     * @throws PlatformAlreadyAssignedException
-     */
-    public static void main(String[] args) throws InterruptedException, PlatformAlreadyAssignedException {
-
-        // create Pi4J console wrapper/helper
-        // (This is a utility class to abstract some of the boilerplate code)
-        final Console console = new Console();
-
-        // print program title/header
-        console.title("<-- The Pi4J Project -->", "GPIO Input Example");
-
-        // allow for user to exit program using CTRL-C
-        console.promptForExit();
+    public static void main(String args[]) throws InterruptedException {
+        System.out.println("<--Pi4J--> GPIO Listen Example ... started.");
 
         // create gpio controller
         final GpioController gpio = GpioFactory.getInstance();
 
-        // by default we will use gpio pin #01; however, if an argument
-        // has been provided, then lookup the pin by address
-        Pin pin = CommandArgumentParser.getPin(
-                RaspiPin.class,    // pin provider class to obtain pin instance from
-                RaspiPin.GPIO_01,  // default pin if no pin argument found
-                args);             // argument array to search in
+        // provision gpio pin #02 as an input pin with its internal pull down resistor enabled
+        final GpioPinDigitalInput myButton = gpio.provisionDigitalInputPin(RaspiPin.GPIO_02, PinPullResistance.PULL_DOWN);
 
-        // by default we will use gpio pin PULL-UP; however, if an argument
-        // has been provided, then use the specified pull resistance
-        PinPullResistance pull = CommandArgumentParser.getPinPullResistance(
-                PinPullResistance.PULL_UP,  // default pin pull resistance if no pull argument found
-                args);                      // argument array to search in
+        // set shutdown state for this input pin
+        myButton.setShutdownOptions(true);
 
-        // provision gpio pin as an input pin
-        final GpioPinDigitalInput input = gpio.provisionDigitalInputPin(pin, "MyInput", pull);
+        // create and register gpio pin listener
+        myButton.addListener(new GpioPinListenerDigital() {
+            @Override
+            public void handleGpioPinDigitalStateChangeEvent(GpioPinDigitalStateChangeEvent event) {
+                // display pin state on console
+                System.out.println(" --> GPIO PIN STATE CHANGE: " + event.getPin() + " = " + event.getState());
+            }
 
-        // set shutdown state for this pin: unexport the pin
-        input.setShutdownOptions(true);
+        });
 
-        // prompt user that we are ready
-        console.println("Successfully provisioned [" + pin + "] with PULL resistance = [" + pull + "]");
-        console.emptyLine();
-        console.box("The GPIO input pin states will be displayed below.");
-        console.emptyLine();
+        System.out.println(" ... complete the GPIO #02 circuit and see the listener feedback here in the console.");
 
-        // display pin state
-        console.emptyLine();
-        console.println(" [" + input.toString() + "] digital state is: " + ConsoleColor.conditional(
-                input.getState().isHigh(), // conditional expression
-                ConsoleColor.GREEN,        // positive conditional color
-                ConsoleColor.RED,          // negative conditional color
-                input.getState()));
-        console.emptyLine();
+        // keep program running until user aborts (CTRL-C)
+        while(true) {
+            Thread.sleep(500);
+        }
 
         // stop all GPIO activity/threads by shutting down the GPIO controller
         // (this method will forcefully shutdown all GPIO monitoring threads and scheduled tasks)
-        gpio.shutdown();
+        // gpio.shutdown();   <--- implement this method call if you wish to terminate the Pi4J GPIO controller
     }
 }
